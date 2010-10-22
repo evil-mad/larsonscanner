@@ -1,26 +1,30 @@
 /*
-larson.c
-The Larson Scanner 
+larsonrunoff.c
+The Larson Scanner -- Alternative version to allow scanner to run off the edge of the board.
+ 
+ It simulates one LED at brightness 4, followed by one LED of brightness 1, that moves across
+ the nine pixels, disappearing off either end of the board, before returning to scan in the other direction.
+ 
+ There is no longer any overlap of these "LEDs" at either end, but up to three LEDs may be lit at a time as
+ the head fades in and the tail fades out.
+ 
+ Also, some of the input and output values and pull-up resistors have been changed from the original program 
+ in anticipation of future extensibility.
 
-Written by Windell Oskay, http://www.evilmadscientist.com/
-
- Copyright 2009 Windell H. Oskay
+Original written by Windell Oskay, http://www.evilmadscientist.com/
+New alternative version written by John Breen III
+ 
+ Copyright 2009 Windell H. Oskay, 2010 John J. Breen III
  Distributed under the terms of the GNU General Public License, please see below.
  
  
 
  An avr-gcc program for the Atmel ATTiny2313  
  
- Version 1.3   Last Modified:  2/8/2009. 
+ Based on Version 1.1_alt1, written by Windell Oskay
+ 
+ Version 1.0   Last Modified:  17-Aug-2010. 
  Written for Evil Mad Science Larson Scanner Kit, based on the "ix" circuit board. 
- 
- Improvements in v 1.3:
- * EEPROM is used to *correctly* remember last speed & brightness mode.
- 
- Improvements in v 1.2:
- * Skinny "eye" mode.  Hold button at turn-on to try this mode.  To make it default,
- solder jumper "Opt 1."  (If skinny mode is default, holding button will disable it temporarily.)
- * EEPROM is used to remember last speed & brightness mode.
  
  
  More information about this project is at 
@@ -73,36 +77,29 @@ Written by Windell Oskay, http://www.evilmadscientist.com/
 
 #include <avr/io.h> 
 
-#include <avr/eeprom.h> 
 
 #define shortdelay(); 			asm("nop\n\t" \
 "nop\n\t");
 
-
-uint16_t eepromWord __attribute__((section(".eeprom")));
-
+  
 int main (void)
 {
 uint8_t LEDs[9]; // Storage for current LED values
 	
 int8_t eyeLoc[5]; // List of which LED has each role, leading edge through tail.
 
-uint8_t LEDBright[4] = {1U,4U,2U,1U};   // Relative brightness of scanning eye positions
+uint8_t LEDBright[4] = {0U,4U,1U,0U};   // Relative brightness of scanning eye positions, head through tail
 	
 int8_t j, m;
 	
 uint8_t position, loopcount, direction;
-uint8_t ILED, RLED, MLED;
+uint8_t ILED, RLED, MLED;	// Eye position variables: Integer, Modulo, remainder
 
 uint8_t delaytime;
-	
-	uint8_t skinnyEye = 0;
+
 uint8_t  pt, debounce, speedLevel;
-	uint8_t 	UpdateConfig;
-	uint8_t BrightMode;
-	uint8_t debounce2, modeswitched;
-	
-	uint8_t CycleCountLow;  
+unsigned int debounce2, BrightMode;
+	 
 	uint8_t LED0, LED1, LED2, LED3, LED4, LED5, LED6, LED7, LED8;
 	
 //Initialization routine: Clear watchdog timer-- this can prevent several things from going wrong.		
@@ -111,17 +108,17 @@ WDTCSR	= 0x18;		//Set stupid bits so we can clear timer...
 WDTCSR	= 0x00;
 
 //Data direction register: DDR's
-//Port A: 0, 1 are inputs.	
+//Port A: 1 is an output, A0 is an input.	
 //Port B: 0-3 are outputs, B4 is an input.	
 //Port D: 1-6 are outputs, D0 is an input.
 	
-	DDRA = 0U;
+	DDRA = 2U;
 	DDRB = 15U;	
 	DDRD = 126U;
 	
-	PORTA = 3;	// Pull-up resistors enabled, PA0, PA1
-	PORTB = 16;	// Pull-up resistor enabled, PA
-	PORTD = 0;
+	PORTA = 1;	// Pull-up resistor enabled, PA0 
+	PORTB = 16;	// Pull-up resistor enabled, PB4
+	PORTD = 1;  // Pull-up resistor enabled, PD0
 	
 /* Visualize outputs:
  
@@ -133,8 +130,8 @@ WDTCSR	= 0x00;
 	
 //multiplexed = LowPower;	
  
-	debounce = 0; 
-	debounce2 = 0;
+	debounce = 1; 
+	debounce2 = 1;
 	loopcount = 254; 
 	delaytime = 0;
 	
@@ -142,66 +139,6 @@ WDTCSR	= 0x00;
 	position = 0;
 	speedLevel = 2;  // Range: 1, 2, 3
 	BrightMode = 0;
-	CycleCountLow = 0;
-	UpdateConfig = 0;
-	modeswitched = 0;
-	
-	
-	if ((PINA & 2) == 0)		// Check if Jumper 1, at location PA1 is shorted
-	{  
-		// Optional place to do something.  :)
-	}
-	
-	
-	
-	if ((PINA & 1) == 0)		// Check if Jumper 2, at location PA0 is shorted
-	{    
-		skinnyEye = 1; 
-	}	
-	
-	
-	if ((PINB & 16) == 0)		// Check if button pressed pressed down at turn-on
-	{		//Toggle Skinnymode
-		if (skinnyEye)
-			skinnyEye = 0; 
-		else 
-			skinnyEye = 1;
-	}
-	
-	
-	
-	if (skinnyEye){
-		LEDBright[0] = 0;
-		LEDBright[1] = 4;
-		LEDBright[2] = 1;
-		LEDBright[3] = 0;  
-	}
-	
-	
-	//Check EEPROM values:
-	
-	pt = (uint8_t) (eeprom_read_word(&eepromWord)) ;
-	speedLevel = pt >> 4;
-	BrightMode = pt & 1;
-	
-	if (pt == 0xFF)
-	{
-		BrightMode = 0;
-	}
-	
-	
-	if (speedLevel > 3)
-		speedLevel = 1; 
-	
-	if ((speedLevel == 2) || (speedLevel == 3)) { 
-		delaytime = 0;
-	} 
-	else 
-	{   speedLevel = 1; 
-		delaytime = 1;
-	}	
-	
-	 
 	
 for (;;)  // main loop
 {
@@ -211,61 +148,24 @@ for (;;)  // main loop
 	{
 		loopcount = 0;
 		
-		CycleCountLow++;
-		if (CycleCountLow > 250)  
-			CycleCountLow = 0;
-		
-		
-		if (UpdateConfig){		// Need to save configuration byte to EEPROM 
-			if (CycleCountLow > 100) // Avoid burning EEPROM in event of flaky power connection resets
-			{
-				
-				UpdateConfig = 0;
-				pt = (speedLevel << 4) | (BrightMode & 1); 
-				eeprom_write_word(&eepromWord, (uint8_t) pt);	
-				// Note: this function causes a momentary brightness glitch while it writes the EEPROM.
-				// We separate out this section to minimize the effect. 
-			}
-			
-		}	
-		
-		
 	if ((PINB & 16) == 0)		// Check for button press
 	{
 		debounce2++;
 		
-		if (debounce2 > 100)  
-		{   
-			if (modeswitched == 0)
-			{  
-			debounce2 = 0;
-			UpdateConfig = 1;
+		if (debounce2 > 100) 
+		{   debounce2 = 0;
 			
 		 if (BrightMode == 0) 
 			BrightMode = 1;
 		 else
 			BrightMode = 0;
 			
-			
-			modeswitched = 1;
-			}
 		}
-		else {
-			debounce = 1;		// Flag that the button WAS pressed.
-			debounce2++;	
-		}
- 
-	}	
-	else{ 
 		
-		debounce2 = 0;
-		modeswitched = 0;
-	
 		if (debounce)
-		{ debounce = 0;
+		{ 
 			speedLevel++;
-			UpdateConfig = 1;
-			
+			  
 			if ((speedLevel == 2) || (speedLevel == 3)) { 
 				delaytime = 0;
 			} 
@@ -273,23 +173,21 @@ for (;;)  // main loop
 			{   speedLevel = 1; 
 				delaytime = 1;
 			}
-			
-			debounce = 0;
+			 
+		debounce = 0;
 		}
-		
-		 
-		
-		
-	
-	
-			}
+	}	
+	else{ 
+	debounce = 1;
+	debounce2 = 1;
+	}
 	    
 		position++;
 		
 		if (speedLevel == 3)
 			position++;
 		
-	 if (position >= 128)	//was  == 128
+	 if (position >= 208)	// To allow for runoff at the ends
 	 {
 		 position = 0;
 		 
@@ -322,15 +220,15 @@ for (;;)  // main loop
 		while (j < 5) {
 			
 			if (direction == 0) 
-			   m = ILED + (2 - j);	// e.g., eyeLoc[0] = ILED + 2; 
+			   m = ILED - (j + 1);	// e.g., eyeLoc[0] = ILED - 1; 
 			else
-			   m = ILED + (j - 2);  // e.g., eyeLoc[0] = ILED - 2;
+			   m = ILED + (j + 1);  // e.g., eyeLoc[0] = ILED + 1;
 			
 			if (m > 8)
-				m -= (2 * (m - 8));
+				m = -1;  // If eye position is past the end of the board, don't light it; set to -1
 			
 			if (m < 0)
-				m *= -1;
+				m = -1;  // If eye position is past the end of the board, don't light it; set to -1
 			
 			eyeLoc[j] = m;
 			
@@ -340,9 +238,11 @@ for (;;)  // main loop
 		j = 0;		// For each of the eye parts...
 		while (j < 4) {
 			
-			LEDs[eyeLoc[j]]   += LEDBright[j]*RLED;			
-			LEDs[eyeLoc[j+1]] += LEDBright[j]*MLED;			
-			 
+			if (eyeLoc[j] >= 0)
+				LEDs[eyeLoc[j]]   += LEDBright[j]*RLED;	
+			if (eyeLoc[j+1] >= 0)
+				LEDs[eyeLoc[j+1]] += LEDBright[j]*MLED;			
+			
 			j++;
 		}  
 	
