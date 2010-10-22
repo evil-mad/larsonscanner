@@ -1,8 +1,8 @@
 #NOTE: This file changes the fuse values of the chip to enable brown-out detection.
 #fuse settings are hard-coded into the bottom lines; change them only with care.
 
-PRG            = larson
-OBJ            = larson.o
+PRG            = larson_jm
+OBJ            = larson_jm.o
 MCU_TARGET     = attiny2313 
 #PROGRAMMER     = avrispmkII 
 PROGRAMMER     = usbtiny	#	Must be updated with the type of programmer that you use!
@@ -78,9 +78,9 @@ esrec: $(PRG)_eeprom.srec
 
 
 # command to program chip (invoked by running "make install")
-install: 
+program: 
 	avrdude -p $(AVRDUDE_TARGET) -c $(PROGRAMMER) -P $(PORT) -v -e -b 115200  \
-	 -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m \
+	 -U lfuse:w:0x64:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m \
 		 -U flash:w:$(PRG).hex	
 
 # -U lfuse:w:0x62:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m 512 kHz internal clock
