@@ -1,8 +1,8 @@
 #NOTE: This file changes the fuse values of the chip to enable brown-out detection.
 #fuse settings are hard-coded into the bottom lines; change them only with care.
 
-PRG            = larson
-OBJ            = larson.o
+PRG            = larsonextend
+OBJ            = larsonextend.o
 MCU_TARGET     = attiny2313 
 #PROGRAMMER     = avrispmkII 
 PROGRAMMER     = usbtiny	#	Must be updated with the type of programmer that you use!
