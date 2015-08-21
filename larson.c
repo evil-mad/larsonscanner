@@ -4,15 +4,21 @@ The Larson Scanner
 
 Written by Windell Oskay, http://www.evilmadscientist.com/
 
- Copyright 2009 Windell H. Oskay
+ Copyright 2011 Windell H. Oskay
  Distributed under the terms of the GNU General Public License, please see below.
  
- 
+  An avr-gcc program for the Atmel ATTiny2313  
 
- An avr-gcc program for the Atmel ATTiny2313  
- 
- Version 1.3   Last Modified:  2/8/2009. 
+ Version 1.4   Last Modified:  8/30/2011. 
  Written for Evil Mad Science Larson Scanner Kit, based on the "ix" circuit board. 
+
+ Larson Scanner docs are at: http://wiki.evilmadscience.com/Larson_Scanner
+ This code hosted at http://code.google.com/p/larsonscanner/
+ 
+ Improvements in v 1.4:
+ * Unidirectional chaser mode added, "robotmode" for making a Robots tie.  
+ Activate by soldering Opt 2. on the circuit board, or by holding button down for about 10 s.
+ *Corrected bug in earlier version-- skinny eye mode was at opt 2, not opt 1.
  
  Improvements in v 1.3:
  * EEPROM is used to *correctly* remember last speed & brightness mode.
@@ -24,7 +30,7 @@ Written by Windell Oskay, http://www.evilmadscientist.com/
  
  
  More information about this project is at 
- http://www.evilmadscientist.com/article.php/larsonkit
+ http://wiki.evilmadscience.com/Larson_Scanner
  
  
  
@@ -92,18 +98,33 @@ uint8_t LEDBright[4] = {1U,4U,2U,1U};   // Relative brightness of scanning eye p
 int8_t j, m;
 	
 uint8_t position, loopcount, direction;
+	
+uint8_t prescale = 0;	// Prescale timer for  for robot mode
+	
 uint8_t ILED, RLED, MLED;
 
 uint8_t delaytime;
 	
 	uint8_t skinnyEye = 0;
-uint8_t  pt, debounce, speedLevel;
+	uint8_t  pt, debounce, speedLevel;
 	uint8_t 	UpdateConfig;
 	uint8_t BrightMode;
 	uint8_t debounce2, modeswitched;
 	
 	uint8_t CycleCountLow;  
-	uint8_t LED0, LED1, LED2, LED3, LED4, LED5, LED6, LED7, LED8;
+	uint8_t LED0 = 0;
+	uint8_t LED1 = 0;
+	uint8_t LED2 = 0;
+	uint8_t LED3 = 0;
+	uint8_t LED4 = 0;
+	uint8_t LED5 = 0;
+	uint8_t LED6 = 0;
+	uint8_t LED7 = 0;
+	uint8_t LED8 = 0; 
+	
+	
+	uint8_t robotmode = 0;
+
 	
 //Initialization routine: Clear watchdog timer-- this can prevent several things from going wrong.		
 MCUSR &= 0xF7;		//Clear WDRF Flag
@@ -122,6 +143,8 @@ WDTCSR	= 0x00;
 	PORTA = 3;	// Pull-up resistors enabled, PA0, PA1
 	PORTB = 16;	// Pull-up resistor enabled, PA
 	PORTD = 0;
+	
+	 
 	
 /* Visualize outputs:
  
@@ -147,16 +170,16 @@ WDTCSR	= 0x00;
 	modeswitched = 0;
 	
 	
-	if ((PINA & 2) == 0)		// Check if Jumper 1, at location PA1 is shorted
+	if ((PINA & 2) == 0)		// Check if Jumper Opt 1, at location PA1 is shorted
 	{  
-		// Optional place to do something.  :)
+		skinnyEye = 1; 
 	}
 	
 	
 	
-	if ((PINA & 1) == 0)		// Check if Jumper 2, at location PA0 is shorted
+	if ((PINA & 1) == 0)		// Check if Jumper Opt 2, at location PA0 is shorted
 	{    
-		skinnyEye = 1; 
+		robotmode = 1;
 	}	
 	
 	
@@ -176,7 +199,7 @@ WDTCSR	= 0x00;
 		LEDBright[2] = 1;
 		LEDBright[3] = 0;  
 	}
-	
+	 
 	
 	//Check EEPROM values:
 	
@@ -209,6 +232,8 @@ for (;;)  // main loop
 	
 	if (loopcount > delaytime)
 	{
+		
+		
 		loopcount = 0;
 		
 		CycleCountLow++;
@@ -245,8 +270,7 @@ for (;;)  // main loop
 			BrightMode = 1;
 		 else
 			BrightMode = 0;
-			
-			
+			 
 			modeswitched = 1;
 			}
 		}
@@ -277,13 +301,41 @@ for (;;)  // main loop
 			debounce = 0;
 		}
 		
-		 
-		
-		
-	
-	
 			}
 	    
+		
+		if (robotmode){
+		
+			prescale++; 
+			if (speedLevel == 3)
+				prescale++;	
+			
+			 if (prescale >= 11) {	// Fine tune the step time with this factor.
+				 position++;
+				 prescale = 0;
+			 }
+			
+			
+			if (position > 18) {
+				position = 0;
+			}
+		
+			// Direction: LEDs chase DOWN TOWARDS BATTERY CONNECTIONS.
+			
+			LED8 = 30 * ((position >> 1) == 0);
+			LED7 = 30 * ((position >> 1) == 1);
+			LED6 = 30 * ((position >> 1) == 2);
+			LED5 = 30 * ((position >> 1) == 3);
+			LED4 = 30 * ((position >> 1) == 4);
+			LED3 = 30 * ((position >> 1) == 5);
+			LED2 = 30 * ((position >> 1) == 6);
+			LED1 = 30 * ((position >> 1) == 7);
+			LED0 = 30 * ((position >> 1) == 8); 
+			
+			
+		}
+		else
+			{
 		position++;
 		
 		if (speedLevel == 3)
@@ -292,11 +344,13 @@ for (;;)  // main loop
 	 if (position >= 128)	//was  == 128
 	 {
 		 position = 0;
-		 
+		  
 	  if (direction == 0)
 		  direction = 1;
 	  else
 		  direction = 0; 
+		  
+		 
 	 }
 		 		
 	if (direction == 0)  // Moving to right, as viewed from front.
@@ -345,16 +399,19 @@ for (;;)  // main loop
 			 
 			j++;
 		}  
+				LED0 = LEDs[0];
+				LED1 = LEDs[1];
+				LED2 = LEDs[2];
+				LED3 = LEDs[3];
+				LED4 = LEDs[4];
+				LED5 = LEDs[5];
+				LED6 = LEDs[6];
+				LED7 = LEDs[7];
+				LED8 = LEDs[8];  
+			
+			}
 	
-	 LED0 = LEDs[0];
-     LED1 = LEDs[1];
-	 LED2 = LEDs[2];
-	 LED3 = LEDs[3];
-	 LED4 = LEDs[4];
-	 LED5 = LEDs[5];
-	 LED6 = LEDs[6];
-	 LED7 = LEDs[7];
-	 LED8 = LEDs[8];  
+
 	}
 	 
 	if (BrightMode == 0)
@@ -391,10 +448,12 @@ for (;;)  // main loop
 		  
 	if (LED5 > j) {
 		PORTB = 17;	 
-		PORTD = 0;}
+		PORTD = 0;
+	}
 			else	{
 		PORTB = 16;
-	PORTD = 0;		}
+	PORTD = 0;		
+			}
 			
 	if (LED6 > j) 
 		PORTB = 18;	
@@ -411,9 +470,10 @@ for (;;)  // main loop
 	else	
 		PORTB = 16; 
 		 
-		j++;
-//		if (speedLevel == 3)
-//			j++;
+		j++; 
+			asm("nop");	 // Delay to make up time difference versus branch.
+			asm("nop");	
+			asm("nop");	
 		 PORTB = 16; 
 	} 
 	 

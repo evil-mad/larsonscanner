@@ -1,3 +1,9 @@
+# Larson Scanner docs are at: http://wiki.evilmadscience.com/Larson_Scanner
+# Code hosted at http://code.google.com/p/larsonscanner/
+
+#use "make all" to compile the software
+#use "make install" to install the software using an AVR ISP Programmer
+
 #NOTE: This file changes the fuse values of the chip to enable brown-out detection.
 #fuse settings are hard-coded into the bottom lines; change them only with care.
 
